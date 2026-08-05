@@ -1,0 +1,25 @@
+appId: com.tawie.app
+productName: Tawie
+directories:
+  output: dist
+files:
+  - out/**/*
+  - main.cjs
+  - preload.cjs
+  - package.json
+win:
+  target: nsis
+nsis:
+  artifactName: ${productName}-${version}-setup.${ext}
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  createDesktopShortcut: always
+mac:
+  artifactName: ${productName}-${version}-${arch}.${ext}
+dmg:
+  artifactName: ${productName}-${version}.${ext}
+linux:
+  executableName: tawie
+  target:
+    - AppImage
+    - deb
