@@ -2,6 +2,20 @@ import type { ReactNode, RefObject } from "react";
 import { createContext, useContext, useRef } from "react";
 import { ParticleField } from "@/components/particle-field";
 import { AuthSplitLayout } from "@/components/auth-split-layout";
+import { useTranslations } from "@/components/i18n-provider";
+
+/** Render copy with the literal "Tawie" brand word emphasized. */
+function withBrand(text: string) {
+  return text.split(/(Tawie)/g).map((part, i) =>
+    part === "Tawie" ? (
+      <span key={i} className="font-semibold text-primary">
+        {part}
+      </span>
+    ) : (
+      part
+    ),
+  );
+}
 
 
 type ImpulseRef = RefObject<number>;
@@ -22,6 +36,7 @@ import { useState, useEffect } from "react";
 function AsciiMac() {
   const [mousePos, setMousePos] = useState({ x: 0.5, y: 0.5 });
   const [isBlinking, setIsBlinking] = useState(false);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -32,17 +47,28 @@ function AsciiMac() {
     };
     window.addEventListener("mousemove", handleMouseMove);
 
-    const blinkInterval = setInterval(() => {
-      setIsBlinking(true);
-      setTimeout(() => setIsBlinking(false), 150);
-    }, Math.random() * 4000 + 2000);
+    // Blink with a natural double-blink cadence.
+    let blinkTimer: ReturnType<typeof setTimeout>;
+    const scheduleBlink = () => {
+      blinkTimer = setTimeout(() => {
+        setIsBlinking(true);
+        setTimeout(() => setIsBlinking(false), 140);
+        scheduleBlink();
+      }, Math.random() * 4000 + 2000);
+    };
+    scheduleBlink();
+
+    // Drives the antenna signal + scanline animation.
+    const tickInterval = setInterval(() => setTick((t) => (t + 1) % 8), 220);
 
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
-      clearInterval(blinkInterval);
+      clearTimeout(blinkTimer);
+      clearInterval(tickInterval);
     };
   }, []);
 
+  // Eyes glance toward the cursor on both axes.
   let leftEye = "O";
   let rightEye = "O";
   let mouth = "\\___/";
@@ -52,21 +78,35 @@ function AsciiMac() {
     rightEye = "-";
     mouth = "___";
   } else {
-    if (mousePos.x < 0.4) { leftEye = "o"; rightEye = "O"; }
-    else if (mousePos.x > 0.6) { leftEye = "O"; rightEye = "o"; }
+    if (mousePos.x < 0.4) { leftEye = "°"; rightEye = "O"; }
+    else if (mousePos.x > 0.6) { leftEye = "O"; rightEye = "°"; }
+    else if (mousePos.y < 0.35) { leftEye = "^"; rightEye = "^"; }
     else { leftEye = "O"; rightEye = "O"; }
-    
-    if (mousePos.y < 0.3) mouth = " O ";
-    else if (mousePos.y > 0.7) mouth = "___";
+
+    if (mousePos.y < 0.3) mouth = " o ";
+    else if (mousePos.y > 0.7) mouth = "\\___/";
+    else mouth = " __ ";
   }
 
+  // Antenna signal strength cycles to read as "listening".
+  const bars = 1 + (tick % 4);
+  const antenna = "·".repeat(bars) + " ".repeat(4 - bars);
+  // A scanline sweeps down the screen area.
+  const scanRow = tick % 6;
+  const screenRows = [0, 1, 2].map((r) =>
+    r === scanRow % 3 && scanRow < 3 ? "~~~~~~~~~~~~~~~~~" : "                 ",
+  );
+
   const ascii = `
+        ${antenna}((•))
+         \\   |
   .-----------------------.
   |  .-----------------.  |
-  |  |                 |  |
+  |  | ${screenRows[0]} |  |
   |  |   ${leftEye}         ${rightEye}   |  |
-  |  |                 |  |
+  |  | ${screenRows[1]} |  |
   |  |      ${mouth.padEnd(5)}      |  |
+  |  | ${screenRows[2]} |  |
   |  '-----------------'  |
   |___ _______________ ___|
       /               \\
@@ -75,7 +115,13 @@ function AsciiMac() {
 
   return (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 opacity-70">
-      <pre className="font-mono text-primary text-xs sm:text-sm md:text-lg leading-tight font-bold drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]">
+      <pre
+        className="font-mono text-primary text-xs sm:text-sm md:text-lg leading-tight font-bold animate-pulse [animation-duration:4s]"
+        style={{
+          filter:
+            "drop-shadow(0 0 8px color-mix(in srgb, var(--primary) 50%, transparent))",
+        }}
+      >
         {ascii}
       </pre>
     </div>
@@ -90,6 +136,7 @@ export function AuthShell({
   variant?: Variant;
 }) {
   const typingImpulseRef = useRef(0);
+  const t = useTranslations();
   return (
     <TypingImpulseContext.Provider value={typingImpulseRef}>
       <AuthSplitLayout
@@ -116,7 +163,7 @@ export function AuthShell({
             />
             <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-12 z-20">
               <div className="pointer-events-auto flex items-center gap-2 font-mono text-sm">
-                <span className="font-bold text-3xl tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-primary to-blue-400">Tawie</span>
+                <span className="font-bold text-3xl tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary-accent">Tawie</span>
               </div>
               {variant === "request-access" ? (
                 <div className="max-w-md">
@@ -131,10 +178,10 @@ export function AuthShell({
               ) : variant === "onboarding" ? (
                 <div className="max-w-md">
                   <div className="font-mono text-[11px] text-primary uppercase tracking-[0.3em]">
-                    First steps
+                    {t("onboarding.shellEyebrow")}
                   </div>
                   <p className="mt-3 font-heading text-xl leading-snug md:text-3xl font-light">
-                    Welcome to <span className="font-semibold text-primary">Tawie</span>, your disposable browser sandbox. Follow these steps to get started securely.
+                    {withBrand(t("onboarding.shellWelcome"))}
                   </p>
                 </div>
               ) : (
